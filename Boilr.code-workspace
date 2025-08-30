@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../react-test-app"
+		},
+		{
+			"path": "../next-test-app"
+		}
+	],
+	"settings": {}
+}
