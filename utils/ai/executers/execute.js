@@ -1,114 +1,133 @@
-// fs-utils.js
-import { promises as fs } from "fs";
-import path from "path";
+const fs = require("fs");
+const path = require("path");
 
-/**
- * Create a folder (recursive).
- */
-export async function createFolder(dirPath) {
-  try {
-    await fs.mkdir(dirPath, { recursive: true });
-    console.log(`📁 Folder created: ${dirPath}`);
-  } catch (err) {
-    console.error(`❌ Failed to create folder ${dirPath}:`, err.message);
+// Ensure directory exists
+function ensureDir(filePath) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 }
 
-/**
- * Create a file with content.
- */
-export async function createFile(filePath, content = "") {
-  try {
-    await fs.writeFile(filePath, content, "utf-8");
-    console.log(`📝 File created: ${filePath}`);
-  } catch (err) {
-    console.error(`❌ Failed to create file ${filePath}:`, err.message);
+// Create file or fallback to alternative
+function createFile(filePath, content, alternative) {
+  ensureDir(filePath);
+
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, content, "utf-8");
+    console.log(`✅ Created file: ${filePath}`);
+  } else {
+    console.log(`⚠️ File already exists: ${filePath}, applying alternative...`);
+    handleAlternative(filePath, alternative);
   }
 }
 
-/**
- * Search for a file inside a directory (recursive).
- */
-export async function findFile(dir, fileName) {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+// Append content
+function appendToFile(filePath, content) {
+  fs.appendFileSync(filePath, "\n" + content, "utf-8");
+  console.log(`📌 Appended content to: ${filePath}`);
+}
 
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        const found = await findFile(fullPath, fileName);
-        if (found) return found;
-      } else if (entry.name === fileName) {
-        return fullPath;
+// Modify file with step instructions
+function modifyFile(filePath, steps) {
+  let content = fs.readFileSync(filePath, "utf-8");
+  let modified = false;
+
+  steps.forEach(step => {
+    let before = content;
+
+    if (step.action === "find_and_replace") {
+      if (content.includes(step.find)) {
+        content = content.replace(step.find, step.replace);
+        modified = true;
+      } else if (step.alternative) {
+        console.log(`⚠️ Could not find "${step.find}", applying step alternative...`);
+        content = applyStepAlternative(filePath, content, step.alternative);
       }
+    } else if (step.action === "insert_after") {
+      if (content.includes(step.target)) {
+        content = content.replace(
+          step.target,
+          `${step.target}\n${step.content}`
+        );
+        modified = true;
+      } else if (step.alternative) {
+        console.log(`⚠️ Target not found for insert_after, applying step alternative...`);
+        content = applyStepAlternative(filePath, content, step.alternative);
+      }
+    } else if (step.action === "insert_before") {
+      if (content.includes(step.target)) {
+        content = content.replace(
+          step.target,
+          `${step.content}\n${step.target}`
+        );
+        modified = true;
+      } else if (step.alternative) {
+        console.log(`⚠️ Target not found for insert_before, applying step alternative...`);
+        content = applyStepAlternative(filePath, content, step.alternative);
+      }
+    } else if (step.action === "append_content") {
+      content += `\n${step.content}`;
+      modified = true;
     }
-    return null;
-  } catch (err) {
-    console.error(`❌ Failed to search in ${dir}:`, err.message);
-    return null;
-  }
-}
 
-/**
- * Rewrite file with new content.
- */
-export async function rewriteFile(filePath, newContent) {
-  try {
-    await fs.writeFile(filePath, newContent, "utf-8");
-    console.log(`🔄 File rewritten: ${filePath}`);
-  } catch (err) {
-    console.error(`❌ Failed to rewrite file ${filePath}:`, err.message);
-  }
-}
-
-/**
- * Append content to a file.
- */
-export async function appendToFile(filePath, content) {
-  try {
-    await fs.appendFile(filePath, content, "utf-8");
-    console.log(`➕ Content appended to: ${filePath}`);
-  } catch (err) {
-    console.error(`❌ Failed to append to file ${filePath}:`, err.message);
-  }
-}
-
-/**
- * Delete file or folder (recursive).
- */
-export async function deletePath(targetPath) {
-  try {
-    await fs.rm(targetPath, { recursive: true, force: true });
-    console.log(`🗑️ Deleted: ${targetPath}`);
-  } catch (err) {
-    console.error(`❌ Failed to delete ${targetPath}:`, err.message);
-  }
-}
-
-/**
- * Execute a list of AI-generated steps.
- * Each step should follow { action, path, content } format.
- */
-export async function executeSteps(steps) {
-  for (const step of steps) {
-    switch (step.action) {
-      case "create_folder":
-        await createFolder(step.path);
-        break;
-      case "create_file":
-        await createFile(step.path, step.content);
-        break;
-      case "rewrite_file":
-        await rewriteFile(step.path, step.content);
-        break;
-      case "append_file":
-        await appendToFile(step.path, step.content);
-        break;
-      case "delete":
-        await deletePath(step.path);
-        break;
-      default:
-        console.log(`⚠️ Unknown action: ${step.action}`);
+    if (before !== content) {
+      console.log(`✏️ Applied step: ${step.action}`);
     }
+  });
+
+  if (modified) {
+    fs.writeFileSync(filePath, content, "utf-8");
+    console.log(`✅ Modified file: ${filePath}`);
   }
 }
+
+// Apply alternative for a single step
+function applyStepAlternative(filePath, content, alternative) {
+  if (Array.isArray(alternative)) {
+    alternative.forEach(step => {
+      content = applyStepAlternative(filePath, content, step);
+    });
+  } else if (alternative.action) {
+    // Re-run as if it's another step
+    return modifyFileContent(content, alternative);
+  }
+  return content;
+}
+
+// Directly modify content based on a step (helper for alternatives)
+function modifyFileContent(content, step) {
+  if (step.action === "insert_after" && content.includes(step.target)) {
+    return content.replace(step.target, `${step.target}\n${step.content}`);
+  }
+  if (step.action === "insert_before" && content.includes(step.target)) {
+    return content.replace(step.target, `${step.content}\n${step.target}`);
+  }
+  if (step.action === "append_content") {
+    return content + `\n${step.content}`;
+  }
+  if (step.action === "find_and_replace" && content.includes(step.find)) {
+    return content.replace(step.find, step.replace);
+  }
+  return content; // no change if still not found
+}
+
+// Handle alternative logic
+function handleAlternative(filePath, alternative) {
+  if (!alternative) return;
+
+  if (Array.isArray(alternative)) {
+    modifyFile(filePath, alternative);
+  } else if (alternative.type === "modify_file") {
+    modifyFile(filePath, alternative.steps);
+  } else if (alternative.type === "append_content") {
+    appendToFile(filePath, alternative.content);
+  }
+}
+
+module.exports = {
+  createFile,
+  appendToFile,
+  modifyFile,
+  handleAlternative,
+};
