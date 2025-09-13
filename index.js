@@ -7,6 +7,7 @@ const setupFirebase = require("./boilrs/firebase");
 const { searchNpmPackage } = require("./utils/search");
 const { askUserToChoose } = require("./utils/askUser");
 const { showReadmes } = require("./utils/readMeFinder");
+const {askAI}  = require('./utils/ai/index')
 
 // Map of supported boilerplates
 const boilerplates = {
@@ -36,13 +37,22 @@ program
     } else {
       // No boilerplate found → fallback
       console.log(`⚠️  No boilerplate found for "${pkgName}". searching online...`);
+      
       try {
         const result = await searchNpmPackage(pkgName);
         if (result.found) {
           const chosenPkg = await askUserToChoose(result.results);
           console.log(`\n✅ You selected: ${chosenPkg.name}@${chosenPkg.version}`);
           console.log(`\n👉 Now searching README files for ${chosenPkg.name}...`);
-          showReadmes(chosenPkg.name);
+           const readmeContent = showReadmes(chosenPkg.name); // <- returns README string
+          
+          const aiReply = await askAI(pkgName, readmeContent);
+          console.log("\n🤖 AI JSON Response:\n", aiReply);
+
+          // Later you can:
+          // const steps = JSON.parse(aiReply);
+          // await executeSteps(steps);
+          
         } else {
           console.log("❌ No npm packages found.");
         }

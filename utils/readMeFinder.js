@@ -49,13 +49,15 @@ function showReadmes(pkgName) {
     return;
   }
 
-  console.log(`\n📖 Found ${readmeFiles.length} README file(s):\n`);
-  readmeFiles.forEach((file, i) => {
-    console.log(`--- [${i + 1}] ${file} ---\n`);
+ const readmes = readmeFiles.map((file, i) => {
     const content = fs.readFileSync(file, "utf-8");
-    console.log(content.substring(0, 1000)); // only show first 1000 chars
-    console.log("\n...\n");
+    return {
+      file,
+      content, // full README content
+    };
   });
+
+  return readmes;
 }
 
 module.exports = { showReadmes };
