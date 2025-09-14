@@ -44,7 +44,7 @@ program
           const chosenPkg = await askUserToChoose(result.results);
           console.log(`\n✅ You selected: ${chosenPkg.name}@${chosenPkg.version}`);
           console.log(`\n👉 Now searching README files for ${chosenPkg.name}...`);
-           const readmeContent = showReadmes(chosenPkg.name); // <- returns README string
+          const readmeContent = await showReadmes(chosenPkg.name); // <-- add await
           
           const aiReply = await askAI(pkgName, readmeContent);
           console.log("\n🤖 AI JSON Response:\n", aiReply);

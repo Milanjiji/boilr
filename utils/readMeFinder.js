@@ -1,8 +1,38 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const readline = require("readline");
 
-function installPackage(pkgName) {
+function isPackageInPackageJson(pkgName) {
+  const pkgJsonPath = path.join(process.cwd(), "package.json");
+  if (!fs.existsSync(pkgJsonPath)) return false;
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
+  const deps = pkgJson.dependencies || {};
+  const devDeps = pkgJson.devDependencies || {};
+  return deps[pkgName] || devDeps[pkgName];
+}
+
+function askUser(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
+
+async function installPackage(pkgName) {
+  if (isPackageInPackageJson(pkgName)) {
+    console.log(`\n✅ ${pkgName} is already listed in package.json.`);
+    const answer = await askUser(`Do you want to reinstall ${pkgName}? (y/N): `);
+    if (answer !== "y" && answer !== "yes") {
+      return path.join(process.cwd(), "node_modules", pkgName);
+    }
+  }
   try {
     console.log(`\n📦 Installing ${pkgName}...`);
     execSync(`npm install ${pkgName}`, { stdio: "inherit" });
@@ -38,8 +68,8 @@ function findReadmeFiles(dir) {
   return readmeFiles;
 }
 
-function showReadmes(pkgName) {
-  const pkgPath = installPackage(pkgName);
+async function showReadmes(pkgName) {
+  const pkgPath = await installPackage(pkgName);
   if (!pkgPath) return;
 
   const readmeFiles = findReadmeFiles(pkgPath);
@@ -49,7 +79,7 @@ function showReadmes(pkgName) {
     return;
   }
 
- const readmes = readmeFiles.map((file, i) => {
+  const readmes = readmeFiles.map((file, i) => {
     const content = fs.readFileSync(file, "utf-8");
     return {
       file,
